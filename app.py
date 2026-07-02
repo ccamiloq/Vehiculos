@@ -110,7 +110,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🚗 Validador & Predictor de Precios de Autos 💰</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Ajusta los parámetros para calcular precio estimado utilizando Inteligencia Artificial.</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Ajusta los parámetros para calcular valor estimado utilizando Inteligencia Artificial.</p>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA DATAROBOT
@@ -171,7 +171,7 @@ def ejecutar_prediccion(df_input):
         return None
 
     job_url = job["links"]["self"]
-    with st.spinner("🧠 Sincronizando con DataRobot para estimar el precio..."):
+    with st.spinner("🧠 Sincronizando con DataRobot para estimar el valor..."):
         while True:
             job_status = _request("GET", job_url)
             if not job_status:
