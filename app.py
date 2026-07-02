@@ -8,7 +8,7 @@ from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 
 # ==========================================
-# CONFIGURACIÓN DE LA PÁGINA Y ESTILOS (FRONTEND VIVO)
+# CONFIGURACIÓN DE LA PÁGINA Y ESTILOS
 # ==========================================
 st.set_page_config(
     page_title="Predicciones DataRobot - Vehículos 🚗",
@@ -16,7 +16,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# Estilos personalizados para inyectar más color y dinamismo visual
 st.markdown("""
     <style>
     .main-title {
@@ -52,7 +51,7 @@ st.markdown("""
         border-radius: 8px;
         margin-top: 20px;
     }
-    .desc-text {
+    .help-text {
         font-size: 0.85rem;
         color: #555555;
         margin-top: -10px;
@@ -62,7 +61,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🚗 Evaluador Inteligente de Vehículos</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular la predicción de valor optimizada por <b>DataRobot</b> ✨</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular la predicción optimizada por <b>DataRobot</b> (Resultados en USD) ✨</p>", unsafe_allow_html=True)
 
 # ==========================================
 # CARGA DE CREDENCIALES DESDE SECRETS
@@ -110,13 +109,11 @@ def lanzar_prediccion_batch(df_input):
         "deploymentId": DEPLOYMENT_ID,
     }
 
-    # 1. Crear el Trabajo (Job)
     job_response = _request("POST", BATCH_PREDICTIONS_URL, data=payload)
     job = json.loads(job_response.read().decode('utf-8'))
     links = job["links"]
     job_url = links["self"]
 
-    # 2. Subir los datos CSV generados dinámicamente
     upload_url = links["csvUpload"]
     upload_request = Request(upload_url, headers={
         "Authorization": f"Token {API_KEY}",
@@ -126,7 +123,6 @@ def lanzar_prediccion_batch(df_input):
     upload_request.get_method = lambda: "PUT"
     urlopen(upload_request, context=ssl.create_default_context()).close()
 
-    # 3. Monitorear el progreso (Polling)
     progress_bar = st.progress(0)
     status_text = st.empty()
 
@@ -152,7 +148,6 @@ def lanzar_prediccion_batch(df_input):
         
         time.sleep(3)
 
-    # 4. Descargar los resultados
     download_url = job_data["links"]["download"]
     download_response = _request("GET", download_url)
     res_csv = download_response.read().decode('utf-8')
@@ -162,7 +157,7 @@ def lanzar_prediccion_batch(df_input):
 # ==========================================
 # INTERFAZ DE USUARIO CON ENTRADAS DINÁMICAS
 # ==========================================
-st.markdown("### 📝 Rellena los datos básicos del vehículo")
+st.markdown("### 📝 Rellena los datos básicos")
 
 col1, col2 = st.columns(2)
 
@@ -172,30 +167,18 @@ with col1:
     model_year = st.number_input("📅 Año del Modelo (Model_Year)", min_value=1980, max_value=2027, value=2022, step=1)
     
     engine_size = st.number_input("💡 Tamaño del Motor (Engine_Size en Litros)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
-    # Descripción dinámica según el tamaño del motor elegido
-    if engine_size <= 1.6:
-        st.caption("🚗 *Motor Pequeño*: Alta eficiencia de combustible, ideal para ciudad.")
-    elif engine_size <= 2.5:
-        st.caption("🚙 *Motor Mediano*: Balance óptimo entre potencia y consumo (Sedanes/SUVs medianos).")
-    else:
-        st.caption("🏎️ *Motor Grande*: Alto rendimiento y fuerza, común en deportivos o camionetas pesadas.")
-
-    transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
-    # Descripción explicativa del tipo de transmisión
-    if transmission == "Automatic":
-        st.caption("🕹️ *Automática*: Cambios automáticos para una conducción más cómoda y fluida.")
-    elif transmission == "Manual":
-        st.caption("🕹️ *Manual*: Control total del conductor sobre las marchas, mayor eficiencia en carretera.")
-    else:
-        st.caption("🕹️ *CVT (Transmisión Continuamente Variable)*: Marchas infinitas simuladas para máxima optimización de combustible.")
+    st.markdown("<p class='help-text'>💡 <i>Pequeño: 0.5L - 1.6L | Mediano: 1.7L - 3.0L | Grande: Mayor a 3.0L</i></p>", unsafe_allow_html=True)
+    
+    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
+    st.markdown("<p class='help-text'>🐎 <i>Pequeño/Urbano: 30 - 120 hp | Mediano/Familiar: 121 - 250 hp | Grande/Deportivo: Más de 250 hp</i></p>", unsafe_allow_html=True)
 
 with col2:
+    transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
+    st.markdown("<p class='help-text'>⚙️ <i><b>Automatic:</b> Cambios automáticos estándar. <br><b>Manual:</b> Caja clásica de embrague. <br><b>CVT:</b> Transmisión continuamente variable (suave y eficiente).</i></p>", unsafe_allow_html=True)
+    
     fuel_type = st.radio("⛽ Tipo de Combustible (Fuel_Type)", ["Gasoline", "Diesel", "Electric", "Hybrid"])
     
     doors = st.slider("🚪 Número de Puertas (Doors)", min_value=2, max_value=5, value=4, step=1)
-    
-    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
-    st.caption("⚡ *Caballos de Fuerza (HP)*: Mide la potencia real del motor. A mayor número, más capacidad de aceleración y velocidad final posee el auto.")
     
     mileage = st.number_input("🛣️ Kilometraje / Millaje (Mileage)", min_value=0, max_value=500000, value=45000, step=1000)
     
@@ -207,11 +190,11 @@ with col2:
 st.markdown("<br>", unsafe_allow_html=True)
 if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True):
     
-    # Se eliminaron car_id y price de la UI, pero pasamos valores neutros por defecto 
-    # para evitar que el modelo de DataRobot lance un error por falta de columnas en el CSV.
+    # Mapeo exacto simulando valores fijos o nulos para Car_ID y Price si el modelo aún los requiere en su esquema de entrada.
+    # Nota: Si tu modelo de DataRobot fue entrenado con ellos, requiere que se los envíes aunque tengan datos por defecto.
     datos_vehiculo = {
         "Brand": [brand],
-        "Car_ID": ["AUTO-999"],  # Valor por defecto estático
+        "Car_ID": ["AUTO-DEFAULT"], # Valor por defecto interno
         "Doors": [doors],
         "Engine_Size": [engine_size],
         "Fuel_Type": [fuel_type],
@@ -219,7 +202,7 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
         "Mileage": [mileage],
         "Model_Year": [model_year],
         "Owner_Count": [owner_count],
-        "Price": [25000],        # Valor de referencia por defecto estático
+        "Price": [0.0],              # Valor por defecto interno
         "Transmission": [transmission]
     }
     
@@ -233,19 +216,15 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
                 st.markdown("<div class='result-box'>", unsafe_allow_html=True)
                 st.markdown("### 🎉 Resultados de la Predicción")
                 
-                # Intentar detectar la columna de predicción dinámica generada por DataRobot
                 col_prediccion = [c for c in df_resultados.columns if 'prediction' in c.lower() or 'pred' in c.lower()]
                 
                 if col_prediccion:
                     valor_prediccion = df_resultados[col_prediccion[0]].iloc[0]
-                    # Se indica explícitamente que la predicción está calculada en dólares estadounidenses.
-                    st.metric(label="🎯 Precio Predicho por el Modelo (USD)", value=f"${valor_prediccion:,.2f}")
-                    st.caption("💵 *Nota:* El valor estimado ha sido calculado en dólares americanos según las tendencias actuales analizadas por la IA.")
+                    st.metric(label="🎯 Valor Predicho por el Modelo (USD)", value=f"${valor_prediccion:,.2f}")
                 else:
                     st.info("Predicción realizada con éxito. Mira los datos devueltos:")
                 
-                # Mostrar tabla completa de respuesta de forma estética
-                st.markdown("<br>**Vista detallada de la respuesta:**", unsafe_allow_html=True)
+                st.markdown("**Vista detallada de la respuesta:**")
                 st.dataframe(df_resultados)
                 st.markdown("</div>", unsafe_allow_html=True)
                 
