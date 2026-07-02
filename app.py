@@ -90,9 +90,8 @@ def realizar_prediccion(df_input):
 
 
 # --- INTERFAZ DE USUARIO ---
-st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚗 Cotizador Inteligente de Autos</h1>", unsafe_index=True)
-st.markdown("<p style='text-align: center; color: #555555;'>Ingresa los datos del vehículo para calcular su valor estimado en el mercado.</p>", unsafe_index=True)
-st.write("---")
+st.markdown("<h1 style='text-align: center; color: #1E3A8A;'>🚗 Cotizador Inteligente de Autos</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #555555;'>Ingresa los datos del vehículo para calcular su valor estimado en el mercado.</p>", unsafe_allow_html=True)
 
 # Organización visual mediante pestañas o columnas
 col1, col2 = st.columns(2)
@@ -183,13 +182,13 @@ if st.button("🔮 Calcular Precio Estimado", type="primary", use_container_widt
                 # Cuadro de resultados vistoso
                 st.markdown(
                     f"""
-                    <div style="background-color:#D1FAE5; padding:20px; border-radius:10px; border-left: 8px solid #10B981; text-align:center;">
+                     <div style="background-color:#D1FAE5; padding:20px; border-radius:10px; border-left: 8px solid #10B981; text-align:center;">
                         <h2 style="color:#065F46; margin:0;">Precio Estimado del Vehículo</h2>
                         <h1 style="color:#047857; margin:10px 0;">${precio_final:,.2f} USD</h1>
                         <p style="color:#065F46; font-weight:bold; margin:0;">⚠️ El precio calculado se expresa en dólares americanos (USD).</p>
                     </div>
                     """, 
-                    unsafe_index=True
+                    unsafe_allow_html=True
                 )
             else:
                 # Si no viene mapeado con ese nombre, mostramos la tabla completa devuelta
