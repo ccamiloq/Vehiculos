@@ -53,7 +53,7 @@ st.markdown("""
     }
     .help-text {
         font-size: 0.85rem;
-        color: #555555;
+        color: #666666;
         margin-top: -10px;
         margin-bottom: 10px;
     }
@@ -61,7 +61,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🚗 Evaluador Inteligente de Vehículos</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular la predicción optimizada por <b>DataRobot</b> (Resultados en USD) ✨</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular la predicción optimizada por <b>DataRobot</b> ✨</p>", unsafe_allow_html=True)
 
 # ==========================================
 # CARGA DE CREDENCIALES DESDE SECRETS
@@ -75,7 +75,7 @@ except KeyError as e:
     st.stop()
 
 # ==========================================
-# CONSTANTES Y PETICIÓN API ORIGINAL REFACTORIZADA
+# CONSTANTES Y PETICIÓN API ORIGINAL
 # ==========================================
 BATCH_PREDICTIONS_URL = f"{HOST}/api/v2/batchPredictions/"
 
@@ -154,8 +154,20 @@ def lanzar_prediccion_batch(df_input):
     
     return pd.read_csv(io.StringIO(res_csv))
 
+def obtener_tasa_usd_cop():
+    """Obtiene la tasa de cambio actual USD/COP de una API pública con fallback."""
+    try:
+        url = "https://open.er-api.com/v6/latest/USD"
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            return data["rates"]["COP"]
+    except Exception:
+        # Tasa de respaldo aproximada en caso de que falle la API externa
+        return 4100.0
+
 # ==========================================
-# INTERFAZ DE USUARIO CON ENTRADAS DINÁMICAS
+# INTERFAZ DE USUARIO MEJORADA
 # ==========================================
 st.markdown("### 📝 Rellena los datos básicos")
 
@@ -163,26 +175,28 @@ col1, col2 = st.columns(2)
 
 with col1:
     brand = st.selectbox("🏷️ Marca del Vehículo (Brand)", ["Toyota", "Ford", "Honda", "Chevrolet", "Nissan", "Hyundai", "BMW", "Mercedes", "Otro"])
-    
     model_year = st.number_input("📅 Año del Modelo (Model_Year)", min_value=1980, max_value=2027, value=2022, step=1)
     
-    engine_size = st.number_input("💡 Tamaño del Motor (Engine_Size en Litros)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
-    st.markdown("<p class='help-text'>💡 <i>Pequeño: 0.5L - 1.6L | Mediano: 1.7L - 3.0L | Grande: Mayor a 3.0L</i></p>", unsafe_allow_html=True)
+    engine_size = st.number_input("💡 Tamaño del Motor en Litros (Engine_Size)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
+    st.markdown("<p class='help-text'>💡 <b>Guía de Tamaño:</b><br>• Pequeño (Económico): 0.5L - 1.6L<br>• Mediano (Estándar/SUV): 1.7L - 2.5L<br>• Grande (Deportivo/Pick-up): > 2.5L</p>", unsafe_allow_html=True)
     
-    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
-    st.markdown("<p class='help-text'>🐎 <i>Pequeño/Urbano: 30 - 120 hp | Mediano/Familiar: 121 - 250 hp | Grande/Deportivo: Más de 250 hp</i></p>", unsafe_allow_html=True)
+    fuel_type = st.radio("⛽ Tipo de Combustible (Fuel_Type)", ["Gasoline", "Diesel", "Electric", "Hybrid"])
 
 with col2:
     transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
-    st.markdown("<p class='help-text'>⚙️ <i><b>Automatic:</b> Cambios automáticos estándar. <br><b>Manual:</b> Caja clásica de embrague. <br><b>CVT:</b> Transmisión continuamente variable (suave y eficiente).</i></p>", unsafe_allow_html=True)
-    
-    fuel_type = st.radio("⛽ Tipo de Combustible (Fuel_Type)", ["Gasoline", "Diesel", "Electric", "Hybrid"])
+    st.markdown("<p class='help-text'>⚙️ <b>Tipos:</b><br>• <b>Automatic:</b> Cambios automáticos estándar.<br>• <b>Manual:</b> Caja de cambios operada por embrague.<br>• <b>CVT:</b> Transmisión Continuamente Variable (marcha suave y ahorro de combustible).</p>", unsafe_allow_html=True)
     
     doors = st.slider("🚪 Número de Puertas (Doors)", min_value=2, max_value=5, value=4, step=1)
     
-    mileage = st.number_input("🛣️ Kilometraje / Millaje (Mileage)", min_value=0, max_value=500000, value=45000, step=1000)
+    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
+    st.markdown("<p class='help-text'>🐎 <b>Guía de Potencia:</b><br>• Pequeño (Urbano): 30 - 110 HP<br>• Mediano (Sedán/Crossover): 111 - 200 HP<br>• Grande (Camionetas/Deportivos): > 200 HP</p>", unsafe_allow_html=True)
     
+    mileage = st.number_input("🛣️ Kilometraje / Millaje (Mileage)", min_value=0, max_value=500000, value=45000, step=1000)
     owner_count = st.slider("👤 Número de Dueños Anteriores (Owner_Count)", min_value=0, max_value=10, value=1, step=1)
+
+# Valores fijos u ocultos que se envían al modelo pero no se le piden al usuario
+CAR_ID_OCULTO = "AUTO-999"
+PRICE_OCULTO = 25000
 
 # ==========================================
 # ACCIÓN AL PRESIONAR EL BOTÓN INTERACTIVO
@@ -190,11 +204,9 @@ with col2:
 st.markdown("<br>", unsafe_allow_html=True)
 if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True):
     
-    # Mapeo exacto simulando valores fijos o nulos para Car_ID y Price si el modelo aún los requiere en su esquema de entrada.
-    # Nota: Si tu modelo de DataRobot fue entrenado con ellos, requiere que se los envíes aunque tengan datos por defecto.
     datos_vehiculo = {
         "Brand": [brand],
-        "Car_ID": ["AUTO-DEFAULT"], # Valor por defecto interno
+        "Car_ID": [CAR_ID_OCULTO],
         "Doors": [doors],
         "Engine_Size": [engine_size],
         "Fuel_Type": [fuel_type],
@@ -202,14 +214,17 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
         "Mileage": [mileage],
         "Model_Year": [model_year],
         "Owner_Count": [owner_count],
-        "Price": [0.0],              # Valor por defecto interno
+        "Price": [PRICE_OCULTO],
         "Transmission": [transmission]
     }
     
     df_entrada = pd.DataFrame(datos_vehiculo)
     
-    with st.spinner("Conectando con los servidores de DataRobot..."):
+    with st.spinner("Conectando con los servidores de DataRobot y consultando tasa de cambio..."):
         try:
+            # Obtener tasa COP en tiempo real
+            tasa_cop = obtener_tasa_usd_cop()
+            
             df_resultados = lanzar_prediccion_batch(df_entrada)
             
             if df_resultados is not None:
@@ -219,8 +234,17 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
                 col_prediccion = [c for c in df_resultados.columns if 'prediction' in c.lower() or 'pred' in c.lower()]
                 
                 if col_prediccion:
-                    valor_prediccion = df_resultados[col_prediccion[0]].iloc[0]
-                    st.metric(label="🎯 Valor Predicho por el Modelo (USD)", value=f"${valor_prediccion:,.2f}")
+                    valor_prediccion_usd = float(df_resultados[col_prediccion[0]].iloc[0])
+                    valor_prediccion_cop = valor_prediccion_usd * tasa_cop
+                    
+                    # Mostrar resultados en ambas monedas
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.metric(label="🎯 Valor Predicho (USD)", value=f"${valor_prediccion_usd:,.2f}")
+                    with c2:
+                        st.metric(label="🇨🇴 Valor en Pesos Colombianos (COP)", value=f"${valor_prediccion_cop:,.0f}")
+                    
+                    st.caption(f"Tasa de cambio aplicada hoy: **1 USD = ${tasa_cop:,.2f} COP**")
                 else:
                     st.info("Predicción realizada con éxito. Mira los datos devueltos:")
                 
