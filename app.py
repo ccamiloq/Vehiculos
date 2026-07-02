@@ -110,7 +110,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🚗 Validador & Predictor de Precios de Autos 💰</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Ajusta los parámetros sobre el fondo optimizado para calcular una tasación precisa utilizando Inteligencia Artificial.</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Ajusta los parámetros para calcular precio estimado utilizando Inteligencia Artificial.</p>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA DATAROBOT
@@ -171,7 +171,7 @@ def ejecutar_prediccion(df_input):
         return None
 
     job_url = job["links"]["self"]
-    with st.spinner("🧠 Sincronizando con DataRobot para estimar la tasación..."):
+    with st.spinner("🧠 Sincronizando con DataRobot para estimar el precio..."):
         while True:
             job_status = _request("GET", job_url)
             if not job_status:
@@ -280,7 +280,7 @@ if st.button("🚀 Calcular Predicción del Valor del Auto", use_container_width
     
     if resultados is not None:
         st.markdown("<div class='result-card'>", unsafe_allow_html=True)
-        st.markdown("<h2 style='color: #34D399; font-weight: 700; margin-top: 0;'>🎉 ¡Tasación Completada!</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #34D399; font-weight: 700; margin-top: 0;'>🎉 ¡Acción Completada!</h2>", unsafe_allow_html=True)
         
         col_prediccion = [c for c in resultados.columns if 'prediction' in c.lower()]
         
