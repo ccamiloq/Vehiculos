@@ -1,149 +1,226 @@
 import streamlit as st
 import pandas as pd
-import os
-import subprocess
 import json
+import ssl
+import time
+import io
+from urllib.request import urlopen, Request
+from urllib.error import HTTPError
 
-# Configuración de las credenciales de DataRobot (Sustituye con tus datos reales)
-DATAROBOT_API_KEY = st.secrets["DATAROBOT_API_KEY"]
-DATAROBOT_DEPLOYMENT_ID = st.secrets["DATAROBOT_DEPLOYMENT_ID"]
-DATAROBOT_HOST = st.secrets["DATAROBOT_HOST"]
-
-# Configuración de la página con un toque de color y emoji
+# ==========================================
+# CONFIGURACIÓN DE LA PÁGINA Y ESTILOS (FRONTEND VIVO)
+# ==========================================
 st.set_page_config(
-    page_title="Predicción de Vehículos 🚗",
-    page_icon="🏎️",
+    page_title="Predicciones DataRobot - Vehículos 🚗",
+    page_icon="✨",
     layout="centered"
 )
 
-# Estilos personalizados para darle más vida y colores a la interfaz
+# Estilos personalizados para inyectar más color y dinamismo visual
 st.markdown("""
     <style>
     .main-title {
         color: #FF4B4B;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         text-align: center;
         font-weight: bold;
     }
-    .section-predict {
-        background-color: #f0f2f6;
+    .subtitle {
+        color: #1E3A8A;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 12px;
+        padding: 10px 24px;
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+        transform: scale(1.02);
+    }
+    .result-box {
+        background-color: #E8F5E9;
+        border-left: 6px solid #2E7D32;
         padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #00c853;
+        border-radius: 8px;
+        margin-top: 20px;
     }
     </style>
-""", unsafe_allow_index=True)
+""", unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-title'>🚗 Evaluador Dinámico de Vehículos 📊</h1>", unsafe_allow_index=True)
-st.write("Introduce las características del coche a continuación para calcular su estimación.")
+st.markdown("<h1 class='main-title'>🚗 Evaluador Inteligente de Vehículos</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular la predicción optimizada por <b>DataRobot</b> ✨</p>", unsafe_allow_html=True)
 
-st.divider()
+# ==========================================
+# CARGA DE CREDENCIALES DESDE SECRETS
+# ==========================================
+try:
+    API_KEY = st.secrets["DATAROBOT_API_KEY"]
+    DEPLOYMENT_ID = st.secrets["DATAROBOT_DEPLOYMENT_ID"]
+    HOST = st.secrets["DATAROBOT_HOST"]
+except KeyError as e:
+    st.error(f"❌ Error de configuración: Falta definir la variable secreta {e} en tus Secrets de Streamlit.")
+    st.stop()
 
-# --- FORMULARIO INTERACTIVO Y EN ESPAÑOL ---
-st.subheader("🛠️ Características del Vehículo")
+# ==========================================
+# CONSTANTES Y PETICIÓN API ORIGINAL REFACTORIZADA
+# ==========================================
+BATCH_PREDICTIONS_URL = f"{HOST}/api/v2/batchPredictions/"
+
+def _request(method, url, data=None):
+    headers = {
+        "Authorization": f"Token {API_KEY}",
+        "User-Agent": "IntegrationSnippet-StandAlone-Python",
+    }
+    if isinstance(data, dict):
+        data = json.dumps(data).encode("utf-8")
+        headers["Content-Type"] = "application/json; encoding=utf-8"
+
+    request = Request(url, headers=headers, data=data)
+    request.get_method = lambda: method
+    
+    # Contexto SSL por defecto (con soporte inseguro deshabilitado por seguridad)
+    ctx = ssl.create_default_context()
+    
+    try:
+        response = urlopen(request, context=ctx, timeout=60)
+        return response
+    except HTTPError as e:
+        error_body = e.read().decode('utf-8')
+        raise Exception(f"Error {e.code}: {error_body}")
+
+def lanzar_prediccion_batch(df_input):
+    # Convertimos el DataFrame de entrada a un CSV en memoria
+    csv_buffer = io.StringIO()
+    df_input.to_csv(csv_buffer, index=False)
+    csv_data = csv_buffer.getvalue().encode('utf-8')
+
+    payload = {
+        "deploymentId": DEPLOYMENT_ID,
+    }
+
+    # 1. Crear el Trabajo (Job)
+    job_response = _request("POST", BATCH_PREDICTIONS_URL, data=payload)
+    job = json.loads(job_response.read().decode('utf-8'))
+    links = job["links"]
+    job_url = links["self"]
+
+    # 2. Subir los datos CSV generados dinámicamente
+    upload_url = links["csvUpload"]
+    upload_request = Request(upload_url, headers={
+        "Authorization": f"Token {API_KEY}",
+        "Content-length": len(csv_data),
+        "Content-type": "text/csv; encoding=utf-8",
+    }, data=csv_data)
+    upload_request.get_method = lambda: "PUT"
+    urlopen(upload_request, context=ssl.create_default_context()).close()
+
+    # 3. Monitorear el progreso (Polling en español)
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    while True:
+        job_check = _request("GET", job_url)
+        job_data = json.loads(job_check.read().decode('utf-8'))
+        status = job_data["status"]
+
+        if status == "INITIALIZING":
+            status_text.info("⏳ Inicializando el motor de predicción de DataRobot...")
+            progress_bar.progress(10)
+        elif status == "RUNNING":
+            pct = int(float(job_data.get("percentageCompleted", 0)))
+            status_text.warning(f"⚙️ Procesando cálculos en la nube... {pct}% completado.")
+            progress_bar.progress(max(10, min(pct, 95)))
+        elif status == "COMPLETED":
+            progress_bar.progress(100)
+            status_text.success("✅ ¡Cálculo completado exitosamente!")
+            break
+        elif status in ["ABORTED", "FAILED"]:
+            status_text.error(f"❌ El proceso ha fallado en DataRobot: {job_data.get('statusDetails')}")
+            return None
+        
+        time.sleep(3)
+
+    # 4. Descargar los resultados
+    download_url = job_data["links"]["download"]
+    download_response = _request("GET", download_url)
+    res_csv = download_response.read().decode('utf-8')
+    
+    return pd.read_csv(io.StringIO(res_csv))
+
+# ==========================================
+# INTERFAZ DE USUARIO CON ENTRADAS DINÁMICAS (VARIABLES.PNG)
+# ==========================================
+st.markdown("### 📝 Rellena los datos básicos")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    car_id = st.text_input("🆔 ID del Coche (Car_ID)", "12345", help="Identificador único del vehículo.")
-    brand = st.selectbox("🏭 Marca (Brand)", ["Toyota", "Ford", "Chevrolet", "Honda", "Nissan", "Volkswagen", "BMW", "Mercedes-Benz", "Audi", "Otro"])
-    model_year = st.number_input("📅 Año del Modelo (Model_Year)", min_value=1980, max_value=2027, value=2020)
-    transmission = st.radio("⚙️ Transmisión (Transmission)", ["Manual", "Automática"], horizontal=True)
-    fuel_type = st.selectbox("⛽ Tipo de Combustible (Fuel_Type)", ["Gasolina", "Diésel", "Híbrido", "Eléctrico", "Gas (GLP/GNV)"])
+    brand = st.selectbox("🏷️ Marca del Vehículo (Brand)", ["Toyota", "Ford", "Honda", "Chevrolet", "Nissan", "Hyundai", "BMW", "Mercedes", "Otro"])
+    car_id = st.text_input("🆔 ID Único del Auto (Car_ID)", "AUTO-999")
+    model_year = st.number_input("📅 Año del Modelo (Model_Year)", min_value=1980, max_value=2027, value=2022, step=1)
+    engine_size = st.number_input("💡 Tamaño del Motor en Litros (Engine_Size)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
+    fuel_type = st.radio("⛽ Tipo de Combustible (Fuel_Type)", ["Gasoline", "Diesel", "Electric", "Hybrid"])
+    transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
 
 with col2:
-    engine_size = st.number_input("🧪 Tamaño del Motor en Litros (Engine_Size)", min_value=0.0, max_value=10.0, value=2.0, step=0.1)
-    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=1, max_value=1000, value=150)
-    doors = st.slider("🚪 Número de Puertas (Doors)", min_value=2, max_value=5, value=4)
-    mileage = st.number_input("🛣️ Kilometraje / Millas (Mileage)", min_value=0, value=50000, step=1000)
-    owner_count = st.number_input("👤 Número de Dueños Anteriores (Owner_Count)", min_value=0, max_value=20, value=1)
+    doors = st.slider("🚪 Número de Puertas (Doors)", min_value=2, max_value=5, value=4, step=1)
+    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
+    mileage = st.number_input("🛣️ Kilometraje / Millaje (Mileage)", min_value=0, max_value=500000, value=45000, step=1000)
+    owner_count = st.slider("👤 Número de Dueños Anteriores (Owner_Count)", min_value=0, max_value=10, value=1, step=1)
+    price = st.number_input("💵 Precio Estimado de Referencia (Price)", min_value=100, max_value=200000, value=25000, step=500)
 
-# Variable oculta o inicial para el objetivo (se suele enviar vacía o con un valor dummy si el modelo lo requiere)
-price = 0 
-
-st.divider()
-
-# --- BOTÓN DE ACCIÓN INTERACTIVO ---
-if st.button("🚀 Calcular Predicción", type="primary", use_container_width=True):
+# ==========================================
+# ACCIÓN AL PRESIONAR EL BOTÓN INTERACTIVO
+# ==========================================
+st.markdown("<br>", unsafe_allow_html=True)
+if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True):
     
-    # Validar que se hayan ingresado las credenciales
-    if DATAROBOT_API_KEY == "TU_API_KEY_AQUI" or DATAROBOT_DEPLOYMENT_ID == "TU_DEPLOYMENT_ID_AQUI":
-        st.error("⚠️ Por favor, configura tus credenciales de DataRobot (`DATAROBOT_API_KEY` y `DATAROBOT_DEPLOYMENT_ID`) al inicio del archivo `app.py`.")
-    else:
-        with st.spinner("🧠 Conectando con la IA de DataRobot... Por favor, espera."):
+    # Mapeo exacto según las columnas que requiere tu modelo (imagen variables.png)
+    datos_vehiculo = {
+        "Brand": [brand],
+        "Car_ID": [car_id],
+        "Doors": [doors],
+        "Engine_Size": [engine_size],
+        "Fuel_Type": [fuel_type],
+        "Horsepower": [horsepower],
+        "Mileage": [mileage],
+        "Model_Year": [model_year],
+        "Owner_Count": [owner_count],
+        "Price": [price],
+        "Transmission": [transmission]
+    }
+    
+    df_entrada = pd.DataFrame(datos_vehiculo)
+    
+    with st.spinner("Conectando con los servidores de DataRobot..."):
+        try:
+            df_resultados = lanzar_prediccion_batch(df_entrada)
             
-            # Mapas de traducción interna (si tu modelo requiere los datos en inglés para procesar)
-            # Si tu modelo fue entrenado con los textos en español, puedes comentar o borrar este mapeo.
-            trans_map = {"Manual": "Manual", "Automática": "Automatic", "Gasolina": "Petrol", "Diésel": "Diesel", "Híbrido": "Hybrid", "Eléctrico": "Electric", "Gas (GLP/GNV)": "Gas"}
-            
-            # 1. Crear el diccionario con las columnas exactas de tu imagen
-            datos_usuario = {
-                "Car_ID": [car_id],
-                "Brand": [brand],
-                "Model_Year": [model_year],
-                "Engine_Size": [engine_size],
-                "Fuel_Type": [trans_map.get(fuel_type, fuel_type)],
-                "Transmission": [trans_map.get(transmission, transmission)],
-                "Mileage": [mileage],
-                "Doors": [doors],
-                "Owner_Count": [owner_count],
-                "Horsepower": [horsepower],
-                "Price": [price]  # Target / Variable a predecir
-            }
-            
-            # 2. Generar los archivos temporales CSV para la comunicación
-            df_input = pd.DataFrame(datos_usuario)
-            input_csv = "temp_input.csv"
-            output_csv = "temp_output.csv"
-            
-            df_input.to_csv(input_csv, index=False)
-            
-            # 3. Construir la línea de comando para ejecutar predict.py de manera nativa
-            comando = [
-                "python", "predict.py",
-                input_csv,
-                output_csv,
-                DATAROBOT_DEPLOYMENT_ID,
-                "--api_key", DATAROBOT_API_KEY,
-                "--host", DATAROBOT_HOST
-            ]
-            
-            try:
-                # Ejecutar el script predict.py adjunto
-                resultado_proceso = subprocess.run(comando, capture_output=True, text=True, check=True)
+            if df_resultados is not None:
+                st.markdown("<div class='result-box'>", unsafe_allow_html=True)
+                st.markdown("### 🎉 Resultados de la Predicción")
                 
-                # 4. Leer el resultado devuelto por DataRobot
-                if os.path.exists(output_csv):
-                    df_output = pd.read_csv(output_csv)
-                    
-                    # Mostrar resultados de forma muy visual
-                    st.balloons()
-                    st.markdown("<div class='section-predict'>", unsafe_allow_index=True)
-                    st.subheader("🎉 ¡Resultado de la Estimación!")
-                    
-                    # DataRobot suele nombrar la columna de predicción como "Prediction" o el nombre de tu target original
-                    # Buscamos dinámicamente cualquier columna que tenga el resultado
-                    col_prediccion = [c for c in df_output.columns if 'prediction' in c.lower() or 'price' in c.lower()]
-                    
-                    if col_prediccion:
-                        valor_predicho = df_output[col_prediccion[0]].iloc[0]
-                        # Suponiendo que el precio es un valor numérico continuo:
-                        st.metric(label="💵 Precio Estimado del Vehículo", value=f"${valor_predicho:,.2f}")
-                    else:
-                        st.write("Datos recibidos del servidor:")
-                        st.dataframe(df_output)
-                        
-                    st.markdown("</div>", unsafe_allow_index=True)
+                # Intentar detectar la columna de predicción dinámica generada por DataRobot
+                col_prediccion = [c for c in df_resultados.columns if 'prediction' in c.lower() or 'pred' in c.lower()]
+                
+                if col_prediccion:
+                    valor_prediccion = df_resultados[col_prediccion[0]].iloc[0]
+                    st.metric(label="🎯 Valor Predicho por el Modelo", value=f"{valor_prediccion:,.2f}")
                 else:
-                    st.error("❌ El archivo de resultados no se generó de manera correcta.")
-                    st.text(resultado_proceso.stderr)
-                    
-            except subprocess.CalledProcessError as e:
-                st.error("💥 Ocurrió un error al ejecutar la predicción en DataRobot.")
-                st.code(e.stderr)
+                    st.info("Predicción realizada con éxito. Mira los datos devueltos:")
                 
-            finally:
-                # Limpieza de archivos temporales creados para la ejecución
-                if os.path.exists(input_csv):
-                    os.remove(input_csv)
-                if os.path.exists(output_csv):
-                    os.remove(output_csv)
+                # Mostrar tabla completa de respuesta de forma estética
+                st.markdown("**Vista detallada de la respuesta:**")
+                st.dataframe(df_resultados)
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+        except Exception as ex:
+            st.error(f"❌ Ocurrió un error inesperado al procesar la predicción: {ex}")
