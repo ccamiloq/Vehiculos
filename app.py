@@ -52,11 +52,17 @@ st.markdown("""
         border-radius: 8px;
         margin-top: 20px;
     }
+    .info-text {
+        font-size: 12px;
+        color: #666666;
+        margin-top: -10px;
+        margin-bottom: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🚗 Evaluador Inteligente de Vehículos</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular la predicción optimizada por <b>DataRobot</b> ✨</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Introduce las especificaciones de tu vehículo para calcular el valor estimado en <b>dólares (USD)</b> optimizado por <b>DataRobot</b> ✨</p>", unsafe_allow_html=True)
 
 # ==========================================
 # CARGA DE CREDENCIALES DESDE SECRETS
@@ -86,7 +92,6 @@ def _request(method, url, data=None):
     request = Request(url, headers=headers, data=data)
     request.get_method = lambda: method
     
-    # Contexto SSL por defecto (con soporte inseguro deshabilitado por seguridad)
     ctx = ssl.create_default_context()
     
     try:
@@ -97,7 +102,6 @@ def _request(method, url, data=None):
         raise Exception(f"Error {e.code}: {error_body}")
 
 def lanzar_prediccion_batch(df_input):
-    # Convertimos el DataFrame de entrada a un CSV en memoria
     csv_buffer = io.StringIO()
     df_input.to_csv(csv_buffer, index=False)
     csv_data = csv_buffer.getvalue().encode('utf-8')
@@ -112,7 +116,7 @@ def lanzar_prediccion_batch(df_input):
     links = job["links"]
     job_url = links["self"]
 
-    # 2. Subir los datos CSV generados dinámicamente
+    # 2. Subir los datos CSV genearos dinámicamente
     upload_url = links["csvUpload"]
     upload_request = Request(upload_url, headers={
         "Authorization": f"Token {API_KEY}",
@@ -122,7 +126,7 @@ def lanzar_prediccion_batch(df_input):
     upload_request.get_method = lambda: "PUT"
     urlopen(upload_request, context=ssl.create_default_context()).close()
 
-    # 3. Monitorear el progreso (Polling en español)
+    # 3. Monitorear el progreso
     progress_bar = st.progress(0)
     status_text = st.empty()
 
@@ -156,37 +160,44 @@ def lanzar_prediccion_batch(df_input):
     return pd.read_csv(io.StringIO(res_csv))
 
 # ==========================================
-# INTERFAZ DE USUARIO CON ENTRADAS DINÁMICAS (VARIABLES.PNG)
+# INTERFAZ DE USUARIO CON ENTRADAS DINÁMICAS
 # ==========================================
-st.markdown("### 📝 Rellena los datos básicos")
+st.markdown("### 📝 Rellena los datos del vehículo")
 
 col1, col2 = st.columns(2)
 
 with col1:
     brand = st.selectbox("🏷️ Marca del Vehículo (Brand)", ["Toyota", "Ford", "Honda", "Chevrolet", "Nissan", "Hyundai", "BMW", "Mercedes", "Otro"])
-    car_id = st.text_input("🆔 ID Único del Auto (Car_ID)", "AUTO-999")
+    
     model_year = st.number_input("📅 Año del Modelo (Model_Year)", min_value=1980, max_value=2027, value=2022, step=1)
+    
     engine_size = st.number_input("💡 Tamaño del Motor en Litros (Engine_Size)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
+    st.markdown("<p class='info-text'>ℹ️ <i>Carros pequeños: menos de 1.6L | Medianos: 1.6L a 2.5L | Grandes / Motores potentes: más de 2.5L</i></p>", unsafe_allow_html=True)
+    
     fuel_type = st.radio("⛽ Tipo de Combustible (Fuel_Type)", ["Gasoline", "Diesel", "Electric", "Hybrid"])
-    transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
 
 with col2:
     doors = st.slider("🚪 Número de Puertas (Doors)", min_value=2, max_value=5, value=4, step=1)
+    
     horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
+    st.markdown("<p class='info-text'>ℹ️ <i>Carros urbanos/pequeños: menos de 110 HP | Sedanes/Suvs medianos: 110 a 200 HP | Deportivos/Grandes: más de 200 HP</i></p>", unsafe_allow_html=True)
+    
     mileage = st.number_input("🛣️ Kilometraje / Millaje (Mileage)", min_value=0, max_value=500000, value=45000, step=1000)
+    
     owner_count = st.slider("👤 Número de Dueños Anteriores (Owner_Count)", min_value=0, max_value=10, value=1, step=1)
-    price = st.number_input("💵 Precio Estimado de Referencia (Price)", min_value=100, max_value=200000, value=25000, step=500)
+    
+    transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
 
 # ==========================================
 # ACCIÓN AL PRESIONAR EL BOTÓN INTERACTIVO
 # ==========================================
 st.markdown("<br>", unsafe_allow_html=True)
-if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True):
+if st.button("🚀 Calcular Valor Estimado con DataRobot", use_container_width=True):
     
-    # Mapeo exacto según las columnas que requiere tu modelo (imagen variables.png)
+    # Mapeo de columnas enviando valores por defecto o fijos para las variables retiradas si el modelo las exige
     datos_vehiculo = {
         "Brand": [brand],
-        "Car_ID": [car_id],
+        "Car_ID": ["AUTO-BATCH"], # Enviado por defecto internamente para no romper la firma del modelo
         "Doors": [doors],
         "Engine_Size": [engine_size],
         "Fuel_Type": [fuel_type],
@@ -194,7 +205,7 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
         "Mileage": [mileage],
         "Model_Year": [model_year],
         "Owner_Count": [owner_count],
-        "Price": [price],
+        "Price": [0],             # Si Price era tu variable objetivo (target), pasamos 0 para la predicción
         "Transmission": [transmission]
     }
     
@@ -208,19 +219,18 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
                 st.markdown("<div class='result-box'>", unsafe_allow_html=True)
                 st.markdown("### 🎉 Resultados de la Predicción")
                 
-                # Intentar detectar la columna de predicción dinámica generada por DataRobot
                 col_prediccion = [c for c in df_resultados.columns if 'prediction' in c.lower() or 'pred' in c.lower()]
                 
                 if col_prediccion:
                     valor_prediccion = df_resultados[col_prediccion[0]].iloc[0]
-                    st.metric(label="🎯 Valor Predicho por el Modelo", value=f"{valor_prediccion:,.2f}")
+                    # Se indica explícitamente en la métrica que el resultado es en dólares (USD)
+                    st.metric(label="🎯 Precio Estimado (Predicción en Dólares USD)", value=f"${valor_prediccion:,.2f}")
                 else:
                     st.info("Predicción realizada con éxito. Mira los datos devueltos:")
                 
-                # Mostrar tabla completa de respuesta de forma estética
                 st.markdown("**Vista detallada de la respuesta:**")
                 st.dataframe(df_resultados)
                 st.markdown("</div>", unsafe_allow_html=True)
                 
         except Exception as ex:
-            st.error(f"❌ Ocurrió un error inesperado al procesar la predicción: {ex}")
+            st.error(f"❌ Ocurrió un error al procesar la predicción: {ex}")
