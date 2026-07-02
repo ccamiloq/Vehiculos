@@ -5,9 +5,9 @@ import subprocess
 import json
 
 # Configuración de las credenciales de DataRobot (Sustituye con tus datos reales)
-DATAROBOT_API_KEY = "TU_API_KEY_AQUI" 
-DATAROBOT_DEPLOYMENT_ID = "TU_DEPLOYMENT_ID_AQUI" 
-DATAROBOT_HOST = "https://app.datarobot.com"
+DATAROBOT_API_KEY = st.secrets["DATAROBOT_API_KEY"]
+DATAROBOT_DEPLOYMENT_ID = st.secrets["DATAROBOT_DEPLOYMENT_ID"]
+DATAROBOT_HOST = st.secrets["DATAROBOT_HOST"]
 
 # Configuración de la página con un toque de color y emoji
 st.set_page_config(
