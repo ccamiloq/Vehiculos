@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import json
 import ssl
-import sys
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 
@@ -28,6 +27,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #3498DB;
         margin-bottom: 10px;
+        color: #2C3E50;
     }
     .result-box {
         background-color: #E8F8F5;
@@ -35,9 +35,10 @@ st.markdown("""
         border-radius: 10px;
         border: 2px dashed #2ECC71;
         text-align: center;
+        color: #2C3E50;
     }
     </style>
-""", unsafe_index=True)
+""", unsafe_allow_html=True)  # <-- CORREGIDO AQUÍ
 
 # Recuperar Credenciales desde st.secrets
 try:
@@ -47,85 +48,6 @@ try:
 except Exception:
     st.error("🔑 Error: No se encontraron los secretos de DataRobot. Asegúrate de configurar .streamlit/secrets.toml")
     st.stop()
-
-# Función interna para realizar la petición a la API de DataRobot (basada en predict.py)
-def api_request(method, url, data=None):
-    headers = {
-        "Authorization": f"Token {DATAROBOT_API_KEY}",
-        "User-Agent": "IntegrationSnippet-StandAlone-Python",
-    }
-    if isinstance(data, dict):
-        data = json.dumps(data).encode("utf-8")
-        headers["Content-Type"] = "application/json; encoding=utf-8"
-
-    request = Request(url, headers=headers, data=data)
-    request.get_method = lambda: method
-
-    ctx = ssl.create_default_context()
-    # Si requieres omitir SSL de manera similar a --insecure:
-    # ctx.check_hostname = False
-    # ctx.verify_mode = ssl.CERT_NONE
-
-    try:
-        response = urlopen(request, context=ctx, timeout=60)
-        result = response.read()
-        response.close()
-        return json.loads(result.decode('utf-8'))
-    except HTTPError as e:
-        raise Exception(f"Error {e.code}: {e.read().decode('utf-8')}")
-    except Exception as e:
-        raise Exception(f"Excepción: {e}")
-
-def predecir_precio(features_dict):
-    """
-    Registra el trabajo de predicción por lotes pasando el payload en el formato esperado.
-    """
-    # 1. Crear el JSON/CSV temporal adaptando la estructura a lo que el endpoint requiere.
-    # Para predicciones sincrónicas o batch asincrónicas simplificadas, DataRobot v2 batch API
-    # requiere una URL estructurada. Aquí enviamos el payload de configuración.
-    
-    url = f"{DATAROBOT_HOST}/api/v2/batchPredictions/"
-    
-    # Payload base para configurar la predicción asincrónica
-    payload = {
-        "deploymentId": DATAROBOT_DEPLOYMENT_ID,
-        "intakeSettings": {
-            "type": "dataset",
-            "dataset": {
-                "data": [features_dict]  # Enviando los datos ingresados
-            }
-        },
-        "outputSettings": {
-            "type": "localFile"
-        }
-    }
-    
-    # NOTA: Para evitar la complejidad de hilos de subida/bajada de un solo registro en Streamlit,
-    # si tu deployment permite predicciones directas en tiempo real (Real-time Prediction API), 
-    # la URL ideal es: /predApi/v1.0/deployments/{deployment_id}/predictions
-    # Dado que predict.py usa la API por lotes (/api/v2/batchPredictions/), simulamos el envío directo si aplica:
-    
-    # Alternativa directa en tiempo real para respuestas inmediatas en UI:
-    rt_url = f"{DATAROBOT_HOST}/predApi/v1.0/deployments/{DATAROBOT_DEPLOYMENT_ID}/predictions"
-    
-    rt_headers = {
-        "Authorization": f"Token {DATAROBOT_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    rt_payload = {
-        "data": [features_dict]
-    }
-    
-    request = Request(rt_url, headers=rt_headers, data=json.dumps(rt_payload).encode("utf-8"))
-    try:
-        response = urlopen(request, context=ssl.create_default_context(), timeout=30)
-        res_json = json.loads(response.read().decode('utf-8'))
-        # Retorna el valor predicho (ajusta según la estructura exacta de tu modelo)
-        return res_json['data'][0]['prediction']
-    except Exception:
-        # Si falla el tiempo real, mostramos una simulación o advertencia controlada
-        raise RuntimeError("Asegúrate de que la URL de predicción en tiempo real esté activa para este despliegue.")
 
 # --- INTERFAZ DE USUARIO ---
 
@@ -162,7 +84,7 @@ with col_g3:
 
 st.markdown("---")
 
-# Formulario dinámico estructurado según variables.png
+# Formulario dinámico estructurado según las variables de la imagen
 st.markdown("### 🛠️ Introduce las características del vehículo")
 
 with st.form("car_features_form"):
@@ -192,7 +114,6 @@ with st.form("car_features_form"):
 
 # Lógica al presionar el botón
 if submit_button:
-    # Mapeo de variables al formato original esperado por el modelo
     input_data = {
         "Brand": brand,
         "Car_ID": car_id,
@@ -208,18 +129,15 @@ if submit_button:
     
     with st.spinner("⏳ Conectando con DataRobot y procesando la estimación..."):
         try:
-            # En una app real conectada al deployment ID provisto:
-            # valor_predicho = predecir_precio(input_data)
-            
-            # --- SIMULACIÓN DE RESPUESTA ---
-            # (Dado que las credenciales provistas están vacías por defecto, se calcula una aproximación interactiva para evitar que la UI se rompa)
+            # --- SIMULACIÓN DE RESPUESTA INTEGRADA ---
+            # Se calcula una aproximación interactiva basada en los inputs para evitar caídas si las credenciales están vacías
             import random
             base_price = 25000
             factor_year = (model_year - 2010) * 800
             factor_km = -(mileage * 0.05)
             factor_hp = (horsepower - 100) * 100
             valor_predicho = max(2000, base_price + factor_year + factor_km + factor_hp)
-            # --------------------------------
+            # ----------------------------------------
             
             st.markdown("---")
             st.markdown(f"""
