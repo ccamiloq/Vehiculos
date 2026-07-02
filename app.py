@@ -163,38 +163,58 @@ def obtener_tasa_usd_cop():
             data = json.loads(response.read().decode())
             return data["rates"]["COP"]
     except Exception:
-        # Tasa de respaldo aproximada en caso de que falle la API externa
         return 4100.0
 
 # ==========================================
 # INTERFAZ DE USUARIO MEJORADA
 # ==========================================
-st.markdown("### 📝 Rellena los datos básicos")
+st.markdown("### 📝 Rellena los datos del vehículo")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    brand = st.selectbox("🏷️ Marca del Vehículo (Brand)", ["Toyota", "Ford", "Honda", "Chevrolet", "Nissan", "Hyundai", "BMW", "Mercedes", "Otro"])
-    model_year = st.number_input("📅 Año del Modelo (Model_Year)", min_value=1980, max_value=2027, value=2022, step=1)
+    brand = st.selectbox("🏷️ Marca del Vehículo", ["Toyota", "Ford", "Honda", "Chevrolet", "Nissan", "Hyundai", "BMW", "Mercedes", "Otro"])
+    model_year = st.number_input("📅 Año del Modelo", min_value=1980, max_value=2027, value=2022, step=1)
     
-    engine_size = st.number_input("💡 Tamaño del Motor en Litros (Engine_Size)", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
-    st.markdown("<p class='help-text'>💡 <b>Guía de Tamaño:</b><br>• Pequeño (Económico): 0.5L - 1.6L<br>• Mediano (Estándar/SUV): 1.7L - 2.5L<br>• Grande (Deportivo/Pick-up): > 2.5L</p>", unsafe_allow_html=True)
+    engine_size = st.number_input("💡 Tamaño del Motor en Litros", min_value=0.5, max_value=8.0, value=2.0, step=0.1)
+    st.markdown("""
+        <p class='help-text'>
+            <b>Clasificación de tamaño por motor:</b><br>
+            • 🚗 <b>Pequeño (Económico):</b> 0.5L - 1.6L<br>
+            • 🚙 <b>Mediano (Estándar/SUV):</b> 1.7L - 2.5L<br>
+            • 🏎️ <b>Grande (Deportivo/Pick-up):</b> Mayor a 2.5L
+        </p>
+    """, unsafe_allow_html=True)
     
-    fuel_type = st.radio("⛽ Tipo de Combustible (Fuel_Type)", ["Gasoline", "Diesel", "Electric", "Hybrid"])
+    fuel_type = st.radio("⛽ Tipo de Combustible", ["Gasoline", "Diesel", "Electric", "Hybrid"])
 
 with col2:
-    transmission = st.selectbox("⚙️ Transmisión (Transmission)", ["Automatic", "Manual", "CVT"])
-    st.markdown("<p class='help-text'>⚙️ <b>Tipos:</b><br>• <b>Automatic:</b> Cambios automáticos estándar.<br>• <b>Manual:</b> Caja de cambios operada por embrague.<br>• <b>CVT:</b> Transmisión Continuamente Variable (marcha suave y ahorro de combustible).</p>", unsafe_allow_html=True)
+    transmission = st.selectbox("⚙️ Transmisión", ["Automatic", "Manual", "CVT"])
+    st.markdown("""
+        <p class='help-text'>
+            <b>Tipos de transmisión:</b><br>
+            • <b>Automatic:</b> Cambios de marcha automáticos estándar.<br>
+            • <b>Manual:</b> Transmisión mecánica operada mediante embrague.<br>
+            • <b>CVT:</b> Transmisión Continuamente Variable (marcha fluida y ahorro de combustible).
+        </p>
+    """, unsafe_allow_html=True)
     
-    doors = st.slider("🚪 Número de Puertas (Doors)", min_value=2, max_value=5, value=4, step=1)
+    doors = st.slider("🚪 Número de Puertas", min_value=2, max_value=5, value=4, step=1)
     
-    horsepower = st.number_input("🐎 Caballos de Fuerza (Horsepower)", min_value=30, max_value=1000, value=150, step=5)
-    st.markdown("<p class='help-text'>🐎 <b>Guía de Potencia:</b><br>• Pequeño (Urbano): 30 - 110 HP<br>• Mediano (Sedán/Crossover): 111 - 200 HP<br>• Grande (Camionetas/Deportivos): > 200 HP</p>", unsafe_allow_html=True)
+    horsepower = st.number_input("🐎 Caballos de Fuerza (HP)", min_value=30, max_value=1000, value=150, step=5)
+    st.markdown("""
+        <p class='help-text'>
+            <b>Clasificación de potencia de motor:</b><br>
+            • 🛵 <b>Baja/Urbano (Carro Pequeño):</b> 30 - 110 HP<br>
+            • 🚗 <b>Media (Sedán/Crossover Mediano):</b> 111 - 200 HP<br>
+            • 🛻 <b>Alta (Camionetas/Deportivos Grandes):</b> Mayor a 200 HP
+        </p>
+    """, unsafe_allow_html=True)
     
-    mileage = st.number_input("🛣️ Kilometraje / Millaje (Mileage)", min_value=0, max_value=500000, value=45000, step=1000)
-    owner_count = st.slider("👤 Número de Dueños Anteriores (Owner_Count)", min_value=0, max_value=10, value=1, step=1)
+    mileage = st.number_input("🛣️ Kilometraje / Millaje", min_value=0, max_value=500000, value=45000, step=1000)
+    owner_count = st.slider("👤 Número de Dueños Anteriores", min_value=0, max_value=10, value=1, step=1)
 
-# Valores fijos u ocultos que se envían al modelo pero no se le piden al usuario
+# Variables ocultas que no se muestran en el formulario pero se envían obligatoriamente al modelo
 CAR_ID_OCULTO = "AUTO-999"
 PRICE_OCULTO = 25000
 
@@ -222,14 +242,13 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
     
     with st.spinner("Conectando con los servidores de DataRobot y consultando tasa de cambio..."):
         try:
-            # Obtener tasa COP en tiempo real
             tasa_cop = obtener_tasa_usd_cop()
-            
             df_resultados = lanzar_prediccion_batch(df_entrada)
             
             if df_resultados is not None:
                 st.markdown("<div class='result-box'>", unsafe_allow_html=True)
                 st.markdown("### 🎉 Resultados de la Predicción")
+                st.info("💡 *Nota: El modelo de DataRobot calcula el valor original en **Dólares Americanos (USD)**.*")
                 
                 col_prediccion = [c for c in df_resultados.columns if 'prediction' in c.lower() or 'pred' in c.lower()]
                 
@@ -237,16 +256,15 @@ if st.button("🚀 Calcular Predicción con DataRobot", use_container_width=True
                     valor_prediccion_usd = float(df_resultados[col_prediccion[0]].iloc[0])
                     valor_prediccion_cop = valor_prediccion_usd * tasa_cop
                     
-                    # Mostrar resultados en ambas monedas
                     c1, c2 = st.columns(2)
                     with c1:
                         st.metric(label="🎯 Valor Predicho (USD)", value=f"${valor_prediccion_usd:,.2f}")
                     with c2:
-                        st.metric(label="🇨🇴 Valor en Pesos Colombianos (COP)", value=f"${valor_prediccion_cop:,.0f}")
+                        st.metric(label="🇨🇴 Conversión a Pesos (COP)", value=f"${valor_prediccion_cop:,.0f}")
                     
                     st.caption(f"Tasa de cambio aplicada hoy: **1 USD = ${tasa_cop:,.2f} COP**")
                 else:
-                    st.info("Predicción realizada con éxito. Mira los datos devueltos:")
+                    st.warning("Predicción realizada con éxito, pero no se reconoció la columna por defecto de resultado. Mira los datos devueltos:")
                 
                 st.markdown("**Vista detallada de la respuesta:**")
                 st.dataframe(df_resultados)
